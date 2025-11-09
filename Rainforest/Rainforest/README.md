@@ -239,7 +239,7 @@ Same as preprod, but use the prod ALB DNS name from terraform output.
 
 ### Container Security
 - **Slim base image**: Minimal attack surface (~5MB)
-- **Non-root user**: Container runs as unprivileged user. You can dicide to be more specfic on giving the user an ID(uid 1000)
+- **Non-root user**: Container runs as unprivileged user. You can decide to be more specfic on giving the user an ID(uid 1000)
 - **Image scanning**: ECR scans on push for vulnerabilities not currently setup
 - **Image lifecycle**: Automatic cleanup of old images (keeps last 4)
 
@@ -260,7 +260,7 @@ Same as preprod, but use the prod ALB DNS name from terraform output.
 
 View logs:
 ```bash
-aws logs tail /ecs/rainforst-api-preprod --follow --region us-east-1
+aws logs tail /ecs/rainforest-api-preprod --follow --region us-east-1
 ```
 
 ## Configuration
@@ -353,7 +353,7 @@ terraform destroy -var-file="environments/prod.tfvars"
 ```bash
 aws ecr batch-delete-image \
   --repository-name rainforest-api-preprod \
-  --image-ids "$(aws ecr list-images --repository-name hello-api-preprod --query 'imageIds[*]' --output json)" \
+  --image-ids "$(aws ecr list-images --repository-name rainforest-api-preprod --query 'imageIds[*]' --output json)" \
   --region us-east-1
 ```
 
@@ -506,3 +506,4 @@ terraform init -backend-config="bucket=rainforest"
 - Prod: ~$30-40/month
 
 - Includes: Fargate, ALB, ECR, CloudWatch Logs, Data Transfer
+
