@@ -61,7 +61,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Waiting for deployment to stabilize..."
-          timeout 3m aws ecs wait services-stable \
+          timeout 2m aws ecs wait services-stable \
             --cluster rainforest-api-preprod-cluster \
             --services rainforest-api-preprod-service \
             --region ${{ env.AWS_REGION }} \
