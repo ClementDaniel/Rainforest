@@ -3,9 +3,9 @@ FROM python:3.11-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install dependencies system-wide
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app.py .
@@ -19,10 +19,9 @@ WORKDIR /app
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
-# Copy only necessary files from builder
+# Copy application and dependencies
+COPY --from=builder /usr/local /usr/local
 COPY --from=builder /app /app
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
 
 USER appuser
 
