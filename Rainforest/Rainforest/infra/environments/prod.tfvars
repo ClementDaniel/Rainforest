@@ -1,0 +1,9 @@
+environment      = "prod"
+aws_region       = "us-east-2"
+container_cpu    = 512
+container_memory = 1024
+desired_count    = 2
+# github_org       = "your-github-org"
+github_repo      = "https://github.com/ClementDaniel/Rainforest"
+encryption_type  = "KMS"
+endpoint         = "rainforest-prod@gmail.com"
