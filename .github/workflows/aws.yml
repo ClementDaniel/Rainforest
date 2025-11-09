@@ -3,8 +3,7 @@ name: Deploy to AWS ECS
 on:
   push:
     tags:
-      - 'v*'              
-  workflow_dispatch:      
+      - 'v*'
 
 permissions:
   id-token: write
@@ -17,25 +16,10 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-24.04
-    outputs:
-      image-tag: ${{ steps.extract-tag.outputs.tag }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Extract tag name (safe for tags or branches)
-        id: extract-tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="${GITHUB_REF#refs/heads/}"
-          fi
-          # Make Docker-safe: lowercase, replace slashes with dashes
-          TAG=$(echo "$TAG" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Using image tag: $TAG"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -47,16 +31,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and push Docker image (latest only)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: hello-api-preprod
-          IMAGE_TAG: ${{ steps.extract-tag.outputs.tag }}
         run: |
-          echo "Building image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy-preprod:
@@ -90,7 +70,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-24.04
-    needs: [build-and-push, deploy-preprod]
+    needs: deploy-preprod
     environment: production
     
     steps:
@@ -101,20 +81,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Tag and push prod image
+      - name: Pull and push preprod image to prod
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
+          ECR_REPOSITORY: hello-api-prod
         run: |
-          echo "Promoting $IMAGE_TAG to production..."
-          docker pull $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG
-          docker tag $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG $ECR_REGISTRY/hello-api-prod:$IMAGE_TAG
-          docker tag $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG $ECR_REGISTRY/hello-api-prod:latest
-          docker push $ECR_REGISTRY/hello-api-prod:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hello-api-prod:latest
+          docker pull $ECR_REGISTRY/hello-api-preprod:latest
+          docker tag $ECR_REGISTRY/hello-api-preprod:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Update ECS service
         run: |
