@@ -1,10 +1,10 @@
 name: Deploy to AWS ECS
 
 on:
-  workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - 'v*'              
+  workflow_dispatch:      
 
 permissions:
   id-token: write
@@ -24,12 +24,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract tag name
+      - name: Extract tag name (safe for tags or branches)
         id: extract-tag
         run: |
-          raw_tag="${GITHUB_REF#refs/*/}"
-          safe_tag="${raw_tag//\//-}"
-          echo "tag=$safe_tag" >> $GITHUB_OUTPUT
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            # Fallback for manual runs or branch pushes
+            TAG="${GITHUB_REF#refs/heads/}"
+            TAG=$(echo "$TAG" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Using image tag: $TAG"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -47,6 +53,7 @@ jobs:
           ECR_REPOSITORY: hello-api-preprod
           IMAGE_TAG: ${{ steps.extract-tag.outputs.tag }}
         run: |
+          echo "Building image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -102,14 +109,10 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
         run: |
-          # Pull from preprod
+          echo "Promoting $IMAGE_TAG to production..."
           docker pull $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG
-          
-          # Tag for prod
           docker tag $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG $ECR_REGISTRY/hello-api-prod:$IMAGE_TAG
           docker tag $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG $ECR_REGISTRY/hello-api-prod:latest
-          
-          # Push to prod
           docker push $ECR_REGISTRY/hello-api-prod:$IMAGE_TAG
           docker push $ECR_REGISTRY/hello-api-prod:latest
 
