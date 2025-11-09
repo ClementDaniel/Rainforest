@@ -56,7 +56,7 @@ A production-ready, minimal containerized API deployed on AWS ECS Fargate with I
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/org-name/hello-api.git
+git clone https://github.com/org-name/rainforest-api.git
 cd rainforest-api
 ```
 
@@ -506,4 +506,5 @@ terraform init -backend-config="bucket=rainforest"
 - Prod: ~$30-40/month
 
 - Includes: Fargate, ALB, ECR, CloudWatch Logs, Data Transfer
+
 
