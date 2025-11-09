@@ -13,7 +13,7 @@ RUN apt-get update && \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements for caching
-COPY requirements.txt .
+COPY . .
 
 # Install dependencies into /install
 RUN pip install --target=/install --no-cache-dir -r requirements.txt
