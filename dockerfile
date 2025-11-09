@@ -18,7 +18,7 @@ RUN apt-get update && \
 RUN pip install --upgrade pip setuptools wheel
 
 # Copy ONLY requirements first (for better caching)
-COPY requirements.txt .
+COPY . .
 
 # Install dependencies with verbose output
 RUN pip install --target=/install --no-cache-dir -r requirements.txt --verbose
