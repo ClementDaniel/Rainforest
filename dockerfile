@@ -1,5 +1,4 @@
-# -------- Stage 1: Build --------
-FROM python:3.11-alpine AS builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -10,8 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app.py .
 
-# -------- Stage 2: Runtime --------
-FROM python:3.11-alpine
+# -------- Stage 2: --------
+FROM python:3.11-slim 
 
 WORKDIR /app
 
