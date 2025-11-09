@@ -4,7 +4,7 @@ FROM python:3.11-alpine AS builder
 WORKDIR /app
 
 # Install dependencies system-wide
-COPY requirements.txt .
+COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
