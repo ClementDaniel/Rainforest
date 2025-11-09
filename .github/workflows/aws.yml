@@ -1,7 +1,10 @@
 name: Deploy to AWS Rainforest private ECS
 
 on:
-  workflow_dispatch:   # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   id-token: write
@@ -14,27 +17,36 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-24.04
+    outputs:
+      image-tag: ${{ steps.extract-tag.outputs.tag }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Extract tag name
+        id: extract-tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build and push Docker image (latest only)
+
+      - name: Build, tag, and push image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: rainforest-api-preprod
+          IMAGE_TAG: ${{ steps.extract-tag.outputs.tag }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy-preprod:
@@ -49,7 +61,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      
+
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -57,7 +69,6 @@ jobs:
             --service rainforest-api-preprod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-      
       - name: Check deployment status (non-blocking)
         continue-on-error: true
         run: |
@@ -72,7 +83,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-24.04
-    needs: deploy-preprod
+    needs: [build-and-push, deploy-preprod]
     environment: production
     
     steps:
@@ -81,21 +92,27 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
           aws-region: ${{ env.AWS_REGION }}
-      
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Pull preprod image and push to prod
+
+      - name: Tag and push prod image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY_PREPROD: rainforest-api-preprod
-          ECR_REPOSITORY_PROD: rainforest-api-prod
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
         run: |
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY_PREPROD:latest
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY_PREPROD:latest $ECR_REGISTRY/$ECR_REPOSITORY_PROD:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_PROD:latest
-      
+          # Pull from preprod
+          docker pull $ECR_REGISTRY/rainforest-api-preprod:$IMAGE_TAG
+          
+          # Tag for prod
+          docker tag $ECR_REGISTRY/rainforest-api-preprod:$IMAGE_TAG $ECR_REGISTRY/rainforest-api-prod:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/rainforest-api-preprod:$IMAGE_TAG $ECR_REGISTRY/rainforest-api-prod:latest
+
+          # Push to prod
+          docker push $ECR_REGISTRY/rainforest-api-prod:$IMAGE_TAG
+          docker push $ECR_REGISTRY/rainforest-api-prod:latest
+
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -103,7 +120,7 @@ jobs:
             --service rainforest-api-prod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-      
+
       - name: Wait for service stability
         run: |
           aws ecs wait services-stable \
