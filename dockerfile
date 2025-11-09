@@ -1,27 +1,28 @@
+# -------- Stage 1: Builder --------
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
 # Install dependencies system-wide
-COPY . .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app.py .
 
-# -------- Stage 2: --------
-FROM python:3.11-slim 
+# -------- Stage 2: Runtime --------
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -g 1000 appuser && \
-    adduser -D -u 1000 -G appuser appuser
+# Create non-root user (Debian slim)
+RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Copy application and dependencies
+# Copy app and dependencies from builder
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /app /app
 
+# Switch to non-root user
 USER appuser
 
 EXPOSE 8080
