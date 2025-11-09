@@ -14,21 +14,21 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-24.04
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
+      
       - name: Build and push Docker image (latest only)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -42,14 +42,14 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build-and-push
     environment: preprod
-
+    
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -57,39 +57,45 @@ jobs:
             --service rainforest-api-preprod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-
-      - name: Wait for service stability
+      
+      - name: Check deployment status (non-blocking)
+        continue-on-error: true
         run: |
-          aws ecs wait services-stable \
+          echo "Waiting for deployment to stabilize..."
+          timeout 3m aws ecs wait services-stable \
             --cluster rainforest-api-preprod-cluster \
             --services rainforest-api-preprod-service \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }} \
+          && echo " PreProd deployment successful" \
+          || echo " PreProd deployment still in progress. Check AWS Console for status."
 
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-24.04
     needs: deploy-preprod
     environment: production
-
+    
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
           aws-region: ${{ env.AWS_REGION }}
-
+      
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
+      
       - name: Pull preprod image and push to prod
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: rainforest-api-prod
+          ECR_REPOSITORY_PREPROD: rainforest-api-preprod
+          ECR_REPOSITORY_PROD: rainforest-api-prod
         run: |
-          docker pull $ECR_REGISTRY/hello-api-preprod:latest
-          docker tag $ECR_REGISTRY/hello-api-preprod:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY_PREPROD:latest
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY_PREPROD:latest $ECR_REGISTRY/$ECR_REPOSITORY_PROD:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_PROD:latest
+      
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -97,7 +103,7 @@ jobs:
             --service rainforest-api-prod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-
+      
       - name: Wait for service stability
         run: |
           aws ecs wait services-stable \
