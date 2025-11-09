@@ -30,10 +30,10 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            # Fallback for manual runs or branch pushes
             TAG="${GITHUB_REF#refs/heads/}"
-            TAG=$(echo "$TAG" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
           fi
+          # Make Docker-safe: lowercase, replace slashes with dashes
+          TAG=$(echo "$TAG" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Using image tag: $TAG"
 
