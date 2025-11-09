@@ -10,13 +10,18 @@ RUN apt-get update && \
         libffi-dev \
         libssl-dev \
         python3-dev \
+        gcc \
+        g++ \
         && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements for caching
-COPY . .
+# Upgrade pip, setuptools, and wheel
+RUN pip install --upgrade pip setuptools wheel
 
-# Install dependencies into /install
-RUN pip install --target=/install --no-cache-dir -r requirements.txt
+# Copy ONLY requirements first (for better caching)
+COPY requirements.txt .
+
+# Install dependencies with verbose output
+RUN pip install --target=/install --no-cache-dir -r requirements.txt --verbose
 
 # Copy application code
 COPY app.py .
@@ -33,12 +38,12 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 
 # Copy application code
-COPY --from=builder /app /app
+COPY --from=builder /app/app.py .
 
 # Switch to non-root user
 USER appuser
 
-# Set PYTHONPATH so Python can find installed packages
+# Set PYTHONPATH
 ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages
 
 EXPOSE 8080
