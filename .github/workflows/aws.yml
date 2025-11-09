@@ -26,7 +26,10 @@ jobs:
 
       - name: Extract tag name
         id: extract-tag
-        run: echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+        run: |
+          raw_tag="${GITHUB_REF#refs/*/}"
+          safe_tag="${raw_tag//\//-}"
+          echo "tag=$safe_tag" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
