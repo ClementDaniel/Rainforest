@@ -3,7 +3,7 @@ name: Deploy to AWS ECS
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' 
 
 permissions:
   id-token: write
@@ -21,6 +21,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set Docker Image Tag
+        run: echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,12 +34,15 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image (latest only)
+      - name: Build and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: hello-api-preprod
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy-preprod:
@@ -44,7 +50,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build-and-push
     environment: preprod
-    
+
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -72,7 +78,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: deploy-preprod
     environment: production
-    
+
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -87,9 +93,12 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: hello-api-prod
+          IMAGE_TAG: ${{ github.ref_name }}
         run: |
-          docker pull $ECR_REGISTRY/hello-api-preprod:latest
-          docker tag $ECR_REGISTRY/hello-api-preprod:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker pull $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/hello-api-preprod:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Update ECS service
