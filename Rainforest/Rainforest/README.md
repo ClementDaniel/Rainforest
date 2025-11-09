@@ -57,7 +57,7 @@ A production-ready, minimal containerized API deployed on AWS ECS Fargate with I
 
 ```bash
 git clone https://github.com/org-name/hello-api.git
-cd hello-api
+cd rainforest-api
 ```
 
 ### Step 2: Configure Terraform Variables
@@ -129,10 +129,10 @@ Add these secrets to your GitHub repository (`Settings > Secrets and variables >
 
 ```bash
 # Build the image
-docker build -t hello-api:local .
+docker build -t rainforest-api:local .
 
 # Run the container
-docker run -p 8080:8080 hello-api:local
+docker run -p 8080:8080 rainforest-api:local
 
 # Test the endpoint
 curl http://localhost:8080/hello
@@ -238,10 +238,10 @@ Same as preprod, but use the prod ALB DNS name from terraform output.
 - **VPC isolation**: Dedicated VPC per environment
 
 ### Container Security
-- **Alpine base image**: Minimal attack surface (~5MB)
-- **Non-root user**: Container runs as unprivileged user (uid 1000)
-- **Image scanning**: ECR scans on push for vulnerabilities
-- **Image lifecycle**: Automatic cleanup of old images (keeps last 10)
+- **Slim base image**: Minimal attack surface (~5MB)
+- **Non-root user**: Container runs as unprivileged user. You can dicide to be more specfic on giving the user an ID(uid 1000)
+- **Image scanning**: ECR scans on push for vulnerabilities not currently setup
+- **Image lifecycle**: Automatic cleanup of old images (keeps last 4)
 
 ### Secrets Management
 - No hardcoded credentials in code or Terraform
@@ -251,7 +251,7 @@ Same as preprod, but use the prod ALB DNS name from terraform output.
 ## Monitoring & Logging
 
 - **CloudWatch Logs**: All container logs centralized
-  - Log group: `/ecs/hello-api-{environment}`
+  - Log group: `/ecs/rainforest-api-{environment}`
   - Retention: 7 days
 - **Container Insights**: Enabled on ECS cluster for metrics
 - **Health Checks**: 
@@ -260,7 +260,7 @@ Same as preprod, but use the prod ALB DNS name from terraform output.
 
 View logs:
 ```bash
-aws logs tail /ecs/hello-api-preprod --follow --region us-east-1
+aws logs tail /ecs/rainforst-api-preprod --follow --region us-east-1
 ```
 
 ## Configuration
@@ -324,7 +324,7 @@ terraform apply -var-file="environments/prod.tfvars"
 2. **deploy-preprod**:
    - Automatic deployment
    - Updates ECS service
-   - Waits for service stability
+   - Waits for service stability with waiting time of 3mins
 
 3. **deploy-prod**:
    - Requires manual approval (GitHub Environment protection)
@@ -352,7 +352,7 @@ terraform destroy -var-file="environments/prod.tfvars"
 **Note**: You may need to manually empty ECR repositories first:
 ```bash
 aws ecr batch-delete-image \
-  --repository-name hello-api-preprod \
+  --repository-name rainforest-api-preprod \
   --image-ids "$(aws ecr list-images --repository-name hello-api-preprod --query 'imageIds[*]' --output json)" \
   --region us-east-1
 ```
@@ -399,7 +399,7 @@ aws ecr batch-delete-image \
    - Task execution: Only CloudWatch Logs and ECR pulls
 
 3. **Container security**
-   - Alpine base (minimal packages)
+   - slim base (minimal packages)
    - Non-root user
    - No unnecessary tools in image
 
@@ -454,12 +454,12 @@ aws ecr batch-delete-image \
 ```bash
 # Check service events
 aws ecs describe-services \
-  --cluster hello-api-preprod-cluster \
-  --services hello-api-preprod-service \
+  --cluster rainforest-api-preprod-cluster \
+  --services rainforest-api-preprod-service \
   --region us-east-1
 
 # Check task logs
-aws logs tail /ecs/hello-api-preprod --follow --region us-east-1
+aws logs tail /ecs/rainforest-api-preprod --follow --region us-east-1
 ```
 
 ### GitHub Actions fails to authenticate
@@ -472,7 +472,7 @@ aws logs tail /ecs/hello-api-preprod --follow --region us-east-1
 
 ```bash
 # Check container logs
-aws logs tail /ecs/hello-api-preprod --follow --region us-east-1
+aws logs tail /ecs/rainforest-api-preprod --follow --region us-east-1
 
 # Test locally
 docker run -p 8080:8080 <ECR_URL>:latest
@@ -504,4 +504,5 @@ terraform init -backend-config="bucket=rainforest"
 **Estimated AWS Costs** (us-east-1):
 - PreProd: ~$15-20/month
 - Prod: ~$30-40/month
+
 - Includes: Fargate, ALB, ECR, CloudWatch Logs, Data Transfer
