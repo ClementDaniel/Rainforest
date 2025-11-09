@@ -1,4 +1,4 @@
-name: Deploy to AWS ECS
+name: Deploy to AWS Rainforest private ECS
 
 on:
   workflow_dispatch:   # Allows manual trigger from GitHub UI
@@ -32,7 +32,7 @@ jobs:
       - name: Build and push Docker image (latest only)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: hello-api-preprod
+          ECR_REPOSITORY: rainforest-api-preprod
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -53,16 +53,16 @@ jobs:
       - name: Update ECS service
         run: |
           aws ecs update-service \
-            --cluster hello-api-preprod-cluster \
-            --service hello-api-preprod-service \
+            --cluster rainforest-api-preprod-cluster \
+            --service rainforest-api-preprod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for service stability
         run: |
           aws ecs wait services-stable \
-            --cluster hello-api-preprod-cluster \
-            --services hello-api-preprod-service \
+            --cluster rainforest-api-preprod-cluster \
+            --services rainforest-api-preprod-service \
             --region ${{ env.AWS_REGION }}
 
   deploy-prod:
@@ -84,7 +84,7 @@ jobs:
       - name: Pull preprod image and push to prod
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: hello-api-prod
+          ECR_REPOSITORY: rainforest-api-prod
         run: |
           docker pull $ECR_REGISTRY/hello-api-preprod:latest
           docker tag $ECR_REGISTRY/hello-api-preprod:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -93,14 +93,14 @@ jobs:
       - name: Update ECS service
         run: |
           aws ecs update-service \
-            --cluster hello-api-prod-cluster \
-            --service hello-api-prod-service \
+            --cluster rainforest-api-prod-cluster \
+            --service rainforest-api-prod-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for service stability
         run: |
           aws ecs wait services-stable \
-            --cluster hello-api-prod-cluster \
-            --services hello-api-prod-service \
+            --cluster rainforest-api-prod-cluster \
+            --services rainforest-api-prod-service \
             --region ${{ env.AWS_REGION }}
